@@ -7,7 +7,6 @@ struct GlassPalette {
   static let ink = Color(white: 0.24)
   static let heading = Color(white: 0.34)
 
-  // The same soft category colors used throughout cards, pins and search.
   static let savedTints: [Color] = [.blue, .purple, .yellow, .mint, .pink, .red, .gray]
 
   let fill: Color

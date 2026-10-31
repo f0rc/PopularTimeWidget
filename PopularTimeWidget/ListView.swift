@@ -25,6 +25,8 @@ struct Location: Identifiable {
 }
 
 struct ListView: View {
+  @State private var isSheetPresented = false
+
   @Binding var locations: [Location]
   var bottomContentInset: CGFloat = 0
   var onAdd: () -> Void = {}
@@ -111,6 +113,17 @@ struct ListView: View {
           }
           .buttonStyle(.plain)
           .accessibilityLabel("Add location")
+          Button {
+            isSheetPresented = true
+          } label: {
+            Image(systemName: "gearshape.fill")
+              .font(.system(size: 21, weight: .medium))
+              .foregroundStyle(GlassPalette.heading)
+              .frame(width: 44, height: 44)
+              .glassEffect(.regular.interactive(), in: Circle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 22)
         .padding(.top, 12)
@@ -150,6 +163,12 @@ struct ListView: View {
         Text("Enter a new name for this location.")
       }
     }
+    .sheet(isPresented: $isSheetPresented) {
+      SettingsSheet(isPresented: $isSheetPresented) {
+        AppSettingsContent(locationCount: locations.count)
+      }
+    }
+
   }
 }
 

@@ -6,6 +6,8 @@ struct ContentView: View {
   @State private var selectedTab = 0
   @State private var keyboardVisible = false
   @State private var tabBarHeight: CGFloat = 70
+    
+  @StateObject private var session = GoogleMapsSession()
 
   var body: some View {
     TabView(selection: $selectedTab) {
