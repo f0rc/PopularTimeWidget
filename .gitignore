@@ -25,3 +25,4 @@ build/
 *.p8
 *.mobileprovision
 *.provisionprofile
+!README.md
