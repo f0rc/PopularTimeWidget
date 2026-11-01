@@ -6,6 +6,8 @@ struct GlassPalette {
   static let outline = Color(white: 0.54)
   static let ink = Color(white: 0.24)
   static let heading = Color(white: 0.34)
+  static let alert = Color(red: 0.72, green: 0.14, blue: 0.18)
+  static let liveOverlay = Color(red: 234 / 255, green: 165 / 255, blue: 155 / 255)
 
   static let savedTints: [Color] = [.blue, .purple, .yellow, .mint, .pink, .red, .gray]
 

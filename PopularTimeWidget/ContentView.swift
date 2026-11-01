@@ -3,11 +3,12 @@ import UIKit
 
 struct ContentView: View {
   @StateObject private var locationStore = LocationStore()
+  @StateObject private var session = GoogleMapsSession()
+  @Environment(\.scenePhase) private var scenePhase
   @State private var selectedTab = 0
+  @State private var openedLocationID: UUID?
   @State private var keyboardVisible = false
   @State private var tabBarHeight: CGFloat = 70
-    
-  @StateObject private var session = GoogleMapsSession()
 
   var body: some View {
     TabView(selection: $selectedTab) {
@@ -15,7 +16,8 @@ struct ContentView: View {
         ListView(
           locations: $locationStore.locations,
           bottomContentInset: keyboardVisible ? 0 : tabBarHeight,
-          onAdd: { selectedTab = 1 }
+          onAdd: { selectedTab = 1 },
+          openedLocationID: $openedLocationID
         )
         .toolbar(.hidden, for: .tabBar)
       }
@@ -39,6 +41,32 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) {
       _ in
       keyboardVisible = false
+    }
+    .environmentObject(locationStore)
+    .environmentObject(session)
+    .task(id: scenePhase) {
+      guard scenePhase == .active else { return }
+      session.restore()
+      locationStore.importWidgetUpdates()
+      await locationStore.refreshAll()
+      while !Task.isCancelled {
+        if let first = locationStore.locations.first {
+          await locationStore.refresh(first.id, cadence: .hourly, force: false)
+        }
+        await locationStore.refreshAll(cadence: .daily)
+        do { try await Task.sleep(for: .seconds(60)) } catch { return }
+      }
+    }
+    .onOpenURL { url in
+      guard url.scheme == "populartime", url.host == "location" else { return }
+      selectedTab = 0
+      openedLocationID = UUID(uuidString: url.lastPathComponent)
+    }
+    .onChange(of: session.revision) {
+      Task { await locationStore.refreshAll(force: true) }
+    }
+    .onChange(of: locationStore.lastVerifiedAt) {
+      if session.connection != .disconnected { session.connection = .verified }
     }
     .tint(GlassPalette.ink)
     .preferredColorScheme(.light)
