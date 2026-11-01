@@ -88,39 +88,10 @@ struct ListView: View {
   var body: some View {
     NavigationStack {
       ScrollView {
-        LazyVStack(spacing: 16) {
-          ForEach(locations) { location in
-            LocationCard(
-              location: location,
-              onEdit: {
-                editingID = location.id
-              },
-              onDelete: {
-                withAnimation(.smooth) {
-                  locations.removeAll {
-                    $0.id == location.id
-                  }
-                }
-              },
-              onRefresh: { Task { await store.refresh(location.id) } },
-              isRefreshing: store.refreshingIDs.contains(location.id)
-            )
-          }
-          .reorderable()
-        }
-        .reorderContainer(for: Location.self) { difference in
-          let destination: UUID?
-          switch difference.destination.position {
-          case .before(let id): destination = id
-          case .end: destination = nil
-          }
-          withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
-            store.move(difference.sources, before: destination)
-          }
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+        locationCards
+          .padding(.horizontal, 18)
+          .padding(.top, 16)
+          .padding(.bottom, 24)
       }
       .contentMargins(.bottom, bottomContentInset, for: .scrollContent)
       .background {
@@ -185,6 +156,51 @@ struct ListView: View {
       }
     }
 
+  }
+
+  private var locationCards: some View {
+    LazyVStack(spacing: 16) {
+      ForEach(locations) { location in
+        locationCard(for: location)
+          .draggable(location.id.uuidString)
+          .dropDestination(for: String.self) { items, _ in
+            guard let item = items.first, let sourceID = UUID(uuidString: item) else {
+              return false
+            }
+            return moveLocation(id: sourceID, to: location.id)
+          }
+      }
+    }
+  }
+
+  private func moveLocation(id sourceID: UUID, to targetID: UUID) -> Bool {
+    guard sourceID != targetID,
+      let sourceIndex = locations.firstIndex(where: { $0.id == sourceID }),
+      let targetIndex = locations.firstIndex(where: { $0.id == targetID })
+    else { return false }
+
+    let destinationIndex = sourceIndex < targetIndex ? targetIndex + 1 : targetIndex
+    let destination = destinationIndex < locations.count ? locations[destinationIndex].id : nil
+    withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+      store.move([sourceID], before: destination)
+    }
+    return true
+  }
+
+  private func locationCard(for location: Location) -> LocationCard {
+    LocationCard(
+      location: location,
+      onEdit: { editingID = location.id },
+      onDelete: { deleteLocation(id: location.id) },
+      onRefresh: { Task { await store.refresh(location.id) } },
+      isRefreshing: store.refreshingIDs.contains(location.id)
+    )
+  }
+
+  private func deleteLocation(id: UUID) {
+    withAnimation(.smooth) {
+      locations.removeAll { $0.id == id }
+    }
   }
 }
 
