@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LocationDetailsView: View {
+  @EnvironmentObject private var store: LocationStore
   @Binding var location: Location
   var onDone: () -> Void
   @FocusState private var nameFocused: Bool
@@ -33,6 +34,8 @@ struct LocationDetailsView: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 24))
         }
 
+        refreshSection
+
         Text("Changes are saved automatically.")
           .font(.system(.footnote, design: .rounded))
           .foregroundStyle(.secondary)
@@ -42,6 +45,7 @@ struct LocationDetailsView: View {
       .padding(.top, 12)
       .padding(.bottom, 24)
     }
+    .task(id: location.id) { await store.refresh(location.id, force: false) }
     .scrollDismissesKeyboard(.interactively)
     .background(GlassPalette.base.ignoresSafeArea())
     .safeAreaInset(edge: .top, spacing: 0) {
@@ -71,6 +75,56 @@ struct LocationDetailsView: View {
     }
   }
 
+  private var refreshSection: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      sectionTitle("Popular times")
+      VStack(alignment: .leading, spacing: 12) {
+        if let updated = location.busyness?.fetchedAt {
+          Text("Updated \(updated.formatted(date: .abbreviated, time: .shortened))")
+            .font(.subheadline)
+        }
+        if let issue = location.refreshIssue {
+          Text(issue).font(.subheadline).foregroundStyle(.secondary)
+        }
+        Button {
+          Task { await store.refresh(location.id) }
+        } label: {
+          HStack {
+            Text("Refresh")
+            Spacer()
+            if store.refreshingIDs.contains(location.id) {
+              ProgressView().controlSize(.small)
+            } else {
+              Image(systemName: "arrow.clockwise")
+            }
+          }
+          .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .disabled(store.refreshingIDs.contains(location.id))
+
+        if let matches = store.matches[location.id], !matches.isEmpty {
+          ForEach(matches) { match in
+            Divider()
+            Button {
+              store.select(match, for: location.id)
+            } label: {
+              VStack(alignment: .leading, spacing: 4) {
+                Text(match.place.name).font(.subheadline.weight(.semibold))
+                Text(match.address).font(.caption).foregroundStyle(.secondary)
+              }
+              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+      .padding(18)
+      .foregroundStyle(GlassPalette.ink)
+      .background(.white, in: RoundedRectangle(cornerRadius: 24))
+    }
+  }
+
   private func sectionTitle(_ title: String) -> some View {
     Text(title)
       .font(.system(.headline, design: .rounded, weight: .semibold))
@@ -81,4 +135,5 @@ struct LocationDetailsView: View {
 
 #Preview {
   LocationDetailsView(location: .constant(ListView.samples[0]), onDone: {})
+    .environmentObject(LocationStore())
 }

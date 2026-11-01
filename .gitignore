@@ -1,0 +1,27 @@
+# Local signing configuration and Xcode metadata
+LocalBuild.json
+*.entitlements
+*.xcodeproj/
+*.xcodeproject/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Keep Markdown files out of the repository
+*.[mM][dD]
+
+# Build output and macOS metadata
+DerivedData/
+build/
+.build/
+.DS_Store
+
+# Local credentials
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile

@@ -12,6 +12,9 @@ struct LocationCardHeader: View {
   let tint: Color
   let onEdit: () -> Void
   let onDelete: () -> Void
+  var onRefresh: () -> Void = {}
+  var isRefreshing = false
+  var hasRefreshIssue = false
 
   var body: some View {
     HStack(spacing: 10) {
@@ -34,6 +37,11 @@ struct LocationCardHeader: View {
           )
         }
 
+        Button(action: onRefresh) {
+          Label("Refresh", systemImage: "arrow.clockwise")
+        }
+        .disabled(isRefreshing)
+
         Divider()
 
         Button(
@@ -46,7 +54,7 @@ struct LocationCardHeader: View {
           )
         }
       } label: {
-        Image(systemName: "ellipsis")
+        Image(systemName: hasRefreshIssue ? "exclamationmark.circle" : "ellipsis")
           .font(
             .system(
               size: 19,
@@ -57,9 +65,20 @@ struct LocationCardHeader: View {
             GlassPalette(tint).foreground
           )
           .frame(width: 44, height: 44)
+          .opacity(isRefreshing ? 0 : 1)
+          .overlay {
+            if isRefreshing {
+              ProgressView()
+                .controlSize(.small)
+                .tint(GlassPalette(tint).foreground)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+          }
           .contentShape(Rectangle())
       }
       .accessibilityLabel("Location options")
+      .accessibilityValue(isRefreshing ? "Refreshing" : (hasRefreshIssue ? "Last update failed" : ""))
     }
   }
 }
@@ -68,6 +87,9 @@ struct LocationCard: View {
   let location: Location
   let onEdit: () -> Void
   let onDelete: () -> Void
+  var onRefresh: () -> Void = {}
+  var isRefreshing = false
+  var showsLive = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -75,19 +97,23 @@ struct LocationCard: View {
         name: location.name,
         tint: location.tint,
         onEdit: onEdit,
-        onDelete: onDelete
+        onDelete: onDelete,
+        onRefresh: onRefresh,
+        isRefreshing: isRefreshing,
+        hasRefreshIssue: location.busyness != nil && location.refreshIssue != nil
       )
 
-      if location.popularTimes.isEmpty {
-        Label("Popular times aren't available yet", systemImage: "clock")
-          .font(.subheadline)
-          .foregroundStyle(GlassPalette(location.tint).foreground)
+      if let data = location.busyness {
+        PopularTimesChart(tint: location.tint, data: data, showsLive: showsLive)
       } else {
-        PopularTimesChart(
-          tint: location.tint,
-          values: location.popularTimes
+        Text(
+          location.refreshIssue == "Choose Google listing"
+            ? "Choose a listing in Details" : "No popular times"
         )
+        .font(.system(.subheadline, design: .rounded))
+        .foregroundStyle(GlassPalette.heading)
       }
+
     }
     .padding(20)
     .frame(maxWidth: .infinity)
@@ -99,7 +125,7 @@ struct LocationCard: View {
 
 #Preview {
   LocationCard(
-    location: Location(name: "[Object object]", tint: .red, popularTimes: [12, 12, 12]),
+    location: ListView.samples[0],
     onEdit: {},
     onDelete: {}
   )

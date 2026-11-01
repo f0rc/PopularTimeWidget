@@ -16,6 +16,11 @@ struct Location: Identifiable {
   var popularTimes: [Double]
   var coordinate: CLLocationCoordinate2D? = nil
   var sourceName: String? = nil
+  var address: String? = nil
+  var googlePlace: PlaceReference? = nil
+  var busyness: PlacePopularTimes? = nil
+  var lastRefreshAttempt: Date? = nil
+  var refreshIssue: String? = nil
 
   var initials: String {
     let letters = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
@@ -25,11 +30,14 @@ struct Location: Identifiable {
 }
 
 struct ListView: View {
+  @EnvironmentObject private var store: LocationStore
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isSheetPresented = false
 
   @Binding var locations: [Location]
   var bottomContentInset: CGFloat = 0
   var onAdd: () -> Void = {}
+  @Binding var openedLocationID: UUID?
 
   static let samples: [Location] = [
     Location(
@@ -62,11 +70,21 @@ struct ListView: View {
         65, 50, 35, 22, 15, 10,
       ]
     ),
-  ]
+  ].map { sample in
+    var sample = sample
+    let hours = sample.popularTimes.enumerated().map { index, value in
+      HourPopularity(
+        hour: (index + 6) % 24, busyness: Int(value),
+        description: BusynessText.label(Int(value), live: false))
+    }
+    sample.busyness = PlacePopularTimes(
+      placeID: "preview", name: sample.name, address: "", timeZoneIdentifier: nil,
+      days: Weekday.allCases.map { PopularTimesDay(weekday: $0, hours: hours) },
+      currentBusyness: nil, currentDescription: nil, fetchedAt: Date())
+    return sample
+  }
 
   @State private var editingID: UUID?
-  @State private var editedName = ""
-  @State private var showEditAlert = false
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -76,8 +94,6 @@ struct ListView: View {
               location: location,
               onEdit: {
                 editingID = location.id
-                editedName = location.name
-                showEditAlert = true
               },
               onDelete: {
                 withAnimation(.smooth) {
@@ -85,8 +101,21 @@ struct ListView: View {
                     $0.id == location.id
                   }
                 }
-              }
+              },
+              onRefresh: { Task { await store.refresh(location.id) } },
+              isRefreshing: store.refreshingIDs.contains(location.id)
             )
+          }
+          .reorderable()
+        }
+        .reorderContainer(for: Location.self) { difference in
+          let destination: UUID?
+          switch difference.destination.position {
+          case .before(let id): destination = id
+          case .end: destination = nil
+          }
+          withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            store.move(difference.sources, before: destination)
           }
         }
         .padding(.horizontal, 18)
@@ -130,37 +159,24 @@ struct ListView: View {
         .padding(.bottom, 18)
         .background(GlassPalette.base)
       }
-      .alert(
-        "Edit Location",
-        isPresented: $showEditAlert
+      .sheet(
+        isPresented: Binding(
+          get: { editingID != nil },
+          set: { if !$0 { editingID = nil } }
+        )
       ) {
-        TextField("Location Name", text: $editedName)
-
-        Button("Save") {
-          let newName =
-            editedName
-            .trimmingCharacters(
-              in: .whitespacesAndNewlines
-            )
-
-          guard !newName.isEmpty,
-            let editingID,
-            let index = locations.firstIndex(
-              where: { $0.id == editingID }
-            )
-          else {
-            return
-          }
-
-          locations[index].name = newName
-          self.editingID = nil
+        if let index = locations.firstIndex(where: { $0.id == editingID }) {
+          LocationDetailsView(location: $locations[index]) { editingID = nil }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(32)
         }
-
-        Button("Cancel", role: .cancel) {
-          editingID = nil
-        }
-      } message: {
-        Text("Enter a new name for this location.")
+      }
+    }
+    .onChange(of: openedLocationID, initial: true) {
+      if let id = openedLocationID, locations.contains(where: { $0.id == id }) {
+        editingID = id
+        openedLocationID = nil
       }
     }
     .sheet(isPresented: $isSheetPresented) {
@@ -173,5 +189,7 @@ struct ListView: View {
 }
 
 #Preview {
-  ListView(locations: .constant(ListView.samples))
+  ListView(locations: .constant(ListView.samples), openedLocationID: .constant(nil))
+    .environmentObject(LocationStore())
+    .environmentObject(GoogleMapsSession())
 }

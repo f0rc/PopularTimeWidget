@@ -134,7 +134,6 @@ struct MapView: View {
           .submitLabel(.search)
           .autocorrectionDisabled()
           .onSubmit { searchFocused = false }
-        // Keep both trailing slots present so loading never changes the field's size.
         ZStack {
           if isSearching {
             ProgressView()
@@ -320,7 +319,6 @@ struct MapView: View {
         search.cancel()
       }
       try Task.checkCancellation()
-      // Keep MapKit relevance ordering, filtering duplicate listings at the same address.
       var unique: [MKMapItem] = []
       for item in response.mapItems {
         let duplicate = unique.contains {
@@ -346,7 +344,8 @@ struct MapView: View {
       let tints = GlassPalette.savedTints
       let location = Location(
         name: item.name ?? "New place", tint: tints[locations.count % tints.count],
-        popularTimes: [], coordinate: coordinate, sourceName: item.name)
+        popularTimes: [], coordinate: coordinate, sourceName: item.name,
+        address: item.address?.fullAddress ?? item.address?.shortAddress)
       locations.append(location)
       selectedID = location.id
     }
@@ -358,4 +357,5 @@ struct MapView: View {
 
 #Preview {
   MapView(locations: .constant([]))
+    .environmentObject(LocationStore())
 }
